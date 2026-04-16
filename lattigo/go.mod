@@ -1,4 +1,4 @@
-module he_knn_lattigo
+module lattigo
 
 go 1.24.5
 

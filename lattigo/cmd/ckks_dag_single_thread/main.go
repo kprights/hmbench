@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"he_knn_lattigo/internal/dagbench"
+	"lattigo/dagbench"
 )
 
 func main() {

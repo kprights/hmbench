@@ -1,60 +1,3 @@
-
-==========================================================================================
-Running 24_ops_single_thread: go run ./cmd/ckks_dag_single_thread_24_parallel (10 successful runs requested)
-==========================================================================================
-  Run 1/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 29036.291 ms)
-  Run 2/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 26090.113 ms)
-  Run 3/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 27690.679 ms)
-  Run 4/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 28484.808 ms)
-  Run 5/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 25589.011 ms)
-  Run 6/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 28629.272 ms)
-  Run 7/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 28558.446 ms)
-  Run 8/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 29238.778 ms)
-  Run 9/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 28025.790 ms)
-  Run 10/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 28345.985 ms)
-
-==========================================================================================
-Running 24_ops_manual_parallel: go run ./cmd/ckks_dag_manual_parallel_24 (10 successful runs requested)
-==========================================================================================
-  Run 1/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2506.962 ms)
-  Run 2/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2555.939 ms)
-  Run 3/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2499.774 ms)
-  Run 4/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2493.394 ms)
-  Run 5/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2588.275 ms)
-  Run 6/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2261.482 ms)
-  Run 7/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2536.043 ms)
-  Run 8/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2589.127 ms)
-  Run 9/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2552.976 ms)
-  Run 10/10 ... OK (manual-parallel 24-branch CKKS DAG evaluation: 2327.579 ms)
-
-==========================================================================================
-Running 48_ops_single_thread: go run ./cmd/ckks_dag_single_thread_48_parallel (10 successful runs requested)
-==========================================================================================
-  Run 1/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 59098.608 ms)
-  Run 2/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 54944.792 ms)
-  Run 3/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 54903.458 ms)
-  Run 4/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 52688.792 ms)
-  Run 5/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 53557.791 ms)
-  Run 6/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 50692.851 ms)
-  Run 7/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 50345.001 ms)
-  Run 8/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 56534.411 ms)
-  Run 9/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 51494.316 ms)
-  Run 10/10 ... OK (single-thread 48-branch CKKS DAG evaluation: 49407.387 ms)
-
-==========================================================================================
-Running 48_ops_manual_parallel: go run ./cmd/ckks_dag_manual_parallel_48 (10 successful runs requested)
-==========================================================================================
-  Run 1/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3087.827 ms)
-  Run 2/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3247.166 ms)
-  Run 3/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3108.362 ms)
-  Run 4/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3054.579 ms)
-  Run 5/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3001.625 ms)
-  Run 6/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3180.105 ms)
-  Run 7/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3176.987 ms)
-  Run 8/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3116.963 ms)
-  Run 9/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 2971.320 ms)
-  Run 10/10 ... OK (manual-parallel 48-branch CKKS DAG evaluation: 3144.325 ms)
-
 ====================================================================================================
 LATTIGO CKKS DAG 24/48 BENCHMARK AVERAGES
 ====================================================================================================
@@ -1584,5 +1527,3 @@ merge_tail....................................................................  
 [merge_tail] rotate_32........................................................     266.852400 ms
 
 ====================================================================================================
-
-Summary written to: /home/guoshuai/github/hmbench/output/lattigo_ckks_dag_24_48_benchmark_summary_20260503_003710.txt

@@ -1,295 +1,254 @@
 #!/usr/bin/env python3
 """
-Benchmark runner for the Lattigo CKKS DAG examples.
-Runs each program multiple times and aggregates timing statistics.
+Run the Lattigo 24/48-branch CKKS DAG examples repeatedly and report average timings.
+
+Kept programs:
+  - 24-task single-thread
+  - 24-task manual-parallel
+  - 48-task single-thread
+  - 48-task manual-parallel
 """
+
+from __future__ import annotations
 
 import argparse
 import re
-import statistics
 import subprocess
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
+from typing import DefaultDict, Dict, Iterable, List, Sequence, Tuple
 
 
-PROGRAMS = {
-    "single": "./cmd/ckks_dag_single_thread/main.go",
-    "manual": "./cmd/ckks_dag_manual_parallel/main.go",
-}
+REPO_ROOT = Path(__file__).resolve().parent
+LATTIGO_DIR = REPO_ROOT / "lattigo"
+DEFAULT_RUNS = 10
+DEFAULT_TIMEOUT_SECONDS = 1200
+DEFAULT_OUTPUT = REPO_ROOT / "output" / "lattigo_ckks_dag_24_48_benchmark_summary.txt"
 
-TOP_LEVEL_PREFIXES = (
-    "Single-thread ",
-    "Manual-parallel ",
-    "OMP-hierarchical ",
-    "Parallel ",
+PROGRAMS: Sequence[Tuple[str, str]] = (
+    ("24_ops_single_thread", "./cmd/ckks_dag_single_thread_24_parallel"),
+    ("24_ops_manual_parallel", "./cmd/ckks_dag_manual_parallel_24"),
+    ("48_ops_single_thread", "./cmd/ckks_dag_single_thread_48_parallel"),
+    ("48_ops_manual_parallel", "./cmd/ckks_dag_manual_parallel_48"),
 )
 
-GROUP_NAMES = ("branch_add", "branch_quad", "branch_cross", "merge_tail", "fanout")
-
-OP_LINE_RE = re.compile(
-    r"^\s*\[([A-Za-z0-9_.-]+)\]\s+([A-Za-z0-9_./-]+)\s+TIME:\s+([\d.]+)\s*(ms|s)\b"
-)
-TIME_LINE_RE = re.compile(r"^\s*(.+?)\s+TIME:\s+([\d.]+)\s*(ms|s)\b")
-
-
-class BenchmarkCollector:
-    """Collects timing data for each program across multiple runs."""
-
-    def __init__(self):
-        self.data = defaultdict(lambda: defaultdict(list))
-
-    def add_run(self, program_name, timing_data):
-        for key, value in timing_data.items():
-            self.data[program_name][key].append(value)
-
-    def get_averages(self, program_name):
-        averages = {}
-        for key, values in self.data.get(program_name, {}).items():
-            if values:
-                averages[key] = statistics.mean(values)
-        return averages
-
-    def get_all_programs(self):
-        return list(self.data.keys())
+TOP_LEVEL_SUFFIX_ORDER = [
+    "CKKS setup",
+    "CKKS key generation",
+    "CKKS runtime object setup",
+    "Message preparation",
+    "Plaintext reference",
+    "CKKS encode",
+    "CKKS encrypt",
+    "CKKS DAG evaluation",
+    "CKKS decrypt/decode",
+    "CKKS full pipeline",
+    "example total",
+]
 
 
-def parse_time_to_ms(value_str, unit):
-    value = float(value_str)
-    return value if unit == "ms" else value * 1000.0
-
-
-def normalize_top_level_label(label):
-    label = " ".join(label.split())
-    for prefix in TOP_LEVEL_PREFIXES:
-        if label.startswith(prefix):
-            return label[len(prefix):]
-    return label
-
-
-def normalize_trace_entries(entries):
-    counts = Counter(entries)
-    seen = Counter()
-    normalized = []
-
-    for entry in entries:
-        seen[entry] += 1
-        if counts[entry] > 1:
-            normalized.append(f"{entry}#{seen[entry]}")
-        else:
-            normalized.append(entry)
-
-    return normalized
-
-
-def parse_timing_output(output):
-    """
-    Parse timing data from program output.
-
-    Supported formats:
-      - "Single-thread CKKS setup TIME: 53.99ms"
-      - "  branch_add TIME: 1294.916 ms"
-      - "  [branch_add] rotate_1 TIME: 425.783 ms | ..."
-    """
-    raw_entries = []
-    values = []
-
-    for line in output.splitlines():
-        op_match = OP_LINE_RE.match(line)
-        if op_match:
-            group, op, value_str, unit = op_match.groups()
-            raw_entries.append(f"{group}.{op}")
-            values.append(parse_time_to_ms(value_str, unit))
-            continue
-
-        time_match = TIME_LINE_RE.match(line)
-        if not time_match:
-            continue
-
-        label, value_str, unit = time_match.groups()
-        label = normalize_top_level_label(label)
-        raw_entries.append(label)
-        values.append(parse_time_to_ms(value_str, unit))
-
-    normalized_entries = normalize_trace_entries(raw_entries)
-    timings = {}
-    for key, value in zip(normalized_entries, values):
-        timings[key] = value
-
-    return timings
-
-
-def run_benchmark(program_path, num_runs):
-    """
-    Run one Go benchmark program multiple times.
-
-    Returns:
-        Tuple[str, list[dict[str, float]]]
-    """
-    program_name = Path(program_path).parent.name
-    results = []
-
-    print(f"\n{'=' * 70}")
-    print(f"Running {program_name} ({num_runs} iterations)...")
-    print(f"{'=' * 70}")
-
-    for run in range(1, num_runs + 1):
-        try:
-            result = subprocess.run(
-                ["go", "run", program_path],
-                cwd="/home/guoshuai/github/hmbench/lattigo",
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-        except subprocess.TimeoutExpired:
-            print(f"  Run {run}/{num_runs}: TIMEOUT")
-            continue
-        except Exception as exc:
-            print(f"  Run {run}/{num_runs}: ERROR ({exc})")
-            continue
-
-        if result.returncode != 0:
-            print(f"  Run {run}/{num_runs}: FAILED (exit code {result.returncode})")
-            if result.stderr.strip():
-                print(f"    stderr: {result.stderr.strip().splitlines()[-1]}")
-            continue
-
-        timings = parse_timing_output(result.stdout + result.stderr)
-        if timings:
-            results.append(timings)
-            print(f"  Run {run}/{num_runs}: OK ({len(timings)} timing points)")
-        else:
-            print(f"  Run {run}/{num_runs}: FAILED (no timing data found)")
-
-    print(f"\nCompleted {len(results)}/{num_runs} successful runs")
-    return program_name, results
-
-
-def is_group_key(key):
-    return key in GROUP_NAMES
-
-
-def is_operation_key(key):
-    return "." in key
-
-
-def format_section(title, items):
-    if not items:
-        return
-
-    print(f"\n  {title}:")
-    for key, value in items:
-        print(f"    {key:.<50} {value:>10.2f} ms")
-
-
-def print_results(collector):
-    print(f"\n\n{'=' * 70}")
-    print("BENCHMARK RESULTS - AVERAGE TIMINGS")
-    print(f"{'=' * 70}\n")
-
-    for program_name in collector.get_all_programs():
-        averages = collector.get_averages(program_name)
-        print(f"\n{program_name}")
-        print("-" * 70)
-
-        if not averages:
-            print("  No data collected")
-            continue
-
-        timing_items = sorted(averages.items())
-        used_keys = set()
-
-        setup_keys = [
-            item
-            for item in timing_items
-            if not is_operation_key(item[0])
-            and (
-                "setup" in item[0].lower()
-                or "generation" in item[0].lower()
-                or "runtime object" in item[0].lower()
-            )
-        ]
-        used_keys.update(key for key, _ in setup_keys)
-        format_section("Setup & Key Generation", setup_keys)
-
-        encode_keys = [
-            item
-            for item in timing_items
-            if not is_operation_key(item[0]) and "encode" in item[0].lower()
-        ]
-        used_keys.update(key for key, _ in encode_keys)
-        format_section("Encoding", encode_keys)
-
-        encrypt_keys = [
-            item
-            for item in timing_items
-            if not is_operation_key(item[0]) and "encrypt" in item[0].lower()
-        ]
-        used_keys.update(key for key, _ in encrypt_keys)
-        format_section("Encryption", encrypt_keys)
-
-        eval_keys = [
-            item
-            for item in timing_items
-            if not is_operation_key(item[0]) and "evaluation" in item[0].lower()
-        ]
-        used_keys.update(key for key, _ in eval_keys)
-        format_section("Evaluation", eval_keys)
-
-        group_keys = [item for item in timing_items if is_group_key(item[0])]
-        used_keys.update(key for key, _ in group_keys)
-        format_section("Operation Group Timings", group_keys)
-
-        operation_keys = [item for item in timing_items if is_operation_key(item[0])]
-        used_keys.update(key for key, _ in operation_keys)
-        format_section("Detailed Operations", operation_keys)
-
-        other_keys = [item for item in timing_items if item[0] not in used_keys]
-        format_section("Other Timings", other_keys)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run and summarize CKKS DAG benchmarks.")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Benchmark Lattigo 24/48-task CKKS DAG single-thread and manual-parallel examples."
+    )
     parser.add_argument(
         "--runs",
         type=int,
-        default=30,
-        help="Number of runs per program (default: 30)",
+        default=DEFAULT_RUNS,
+        help=f"Number of successful runs per program. Default: {DEFAULT_RUNS}.",
     )
     parser.add_argument(
-        "--program",
-        choices=("all", "single", "manual"),
-        default="all",
-        help="Which benchmark program to run (default: all)",
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=f"Timeout in seconds for each single program run. Default: {DEFAULT_TIMEOUT_SECONDS}.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help=f"Summary output file. Default: {DEFAULT_OUTPUT}.",
+    )
+    parser.add_argument(
+        "--go",
+        default="go",
+        help="Go executable to use. Default: go.",
+    )
+    parser.add_argument(
+        "--only",
+        choices=[label for label, _ in PROGRAMS],
+        nargs="+",
+        help="Run only selected benchmark labels.",
     )
     return parser.parse_args()
 
 
-def main():
+def average(values: Iterable[float]) -> float:
+    values = list(values)
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def metric_sort_key(name: str) -> Tuple[int, str]:
+    for index, suffix in enumerate(TOP_LEVEL_SUFFIX_ORDER):
+        if name.endswith(suffix):
+            return index, name
+    if name.startswith("parallel_") and name.endswith("TOTAL_TIME"):
+        return len(TOP_LEVEL_SUFFIX_ORDER), name
+    if name.startswith("branch_"):
+        return len(TOP_LEVEL_SUFFIX_ORDER) + 1, name
+    if name == "merge_tail":
+        return len(TOP_LEVEL_SUFFIX_ORDER) + 2, name
+    if name.startswith("["):
+        return len(TOP_LEVEL_SUFFIX_ORDER) + 3, name
+    return len(TOP_LEVEL_SUFFIX_ORDER) + 4, name
+
+
+def parse_timing_output(output: str) -> Dict[str, float]:
+    timings: Dict[str, float] = {}
+    time_pattern = re.compile(
+        r"^\s*(?P<name>.+?)\s+(?P<kind>TIME|TOTAL_TIME):\s+"
+        r"(?P<value>[0-9]+(?:\.[0-9]+)?)\s+ms(?:\s+\|.*)?\s*$"
+    )
+
+    for line in output.splitlines():
+        match = time_pattern.match(line)
+        if not match:
+            continue
+
+        name = match.group("name").strip()
+        kind = match.group("kind")
+        if kind == "TOTAL_TIME":
+            name = f"{name} TOTAL_TIME"
+        timings[name] = float(match.group("value"))
+
+    return timings
+
+
+def run_once(go_bin: str, package: str, timeout: int) -> Dict[str, float]:
+    result = subprocess.run(
+        [go_bin, "run", package],
+        cwd=LATTIGO_DIR,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"program exited with code {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+
+    timings = parse_timing_output(result.stdout)
+    if not timings:
+        raise RuntimeError("no timing data found in program output")
+    return timings
+
+
+def run_program(label: str, go_bin: str, package: str, runs: int, timeout: int) -> List[Dict[str, float]]:
+    results: List[Dict[str, float]] = []
+
+    print("\n" + "=" * 90)
+    print(f"Running {label}: go run {package} ({runs} successful runs requested)")
+    print("=" * 90)
+
+    attempts = 0
+    max_attempts = runs
+    while len(results) < runs and attempts < max_attempts:
+        attempts += 1
+        print(f"  Run {len(results) + 1}/{runs} ... ", end="", flush=True)
+        try:
+            timings = run_once(go_bin, package, timeout)
+        except subprocess.TimeoutExpired:
+            print("TIMEOUT")
+            continue
+        except Exception as exc:
+            print(f"FAILED ({exc})")
+            continue
+
+        results.append(timings)
+        evaluation_keys = [key for key in timings if "CKKS DAG evaluation" in key]
+        if evaluation_keys:
+            key = sorted(evaluation_keys)[0]
+            print(f"OK ({key}: {timings[key]:.3f} ms)")
+        else:
+            print(f"OK ({len(timings)} timing items)")
+
+    if len(results) < runs:
+        print(f"  Warning: collected {len(results)}/{runs} successful runs")
+    return results
+
+
+def summarize_runs(runs: List[Dict[str, float]]) -> Dict[str, float]:
+    grouped: DefaultDict[str, List[float]] = defaultdict(list)
+    for run in runs:
+        for metric, value in run.items():
+            grouped[metric].append(value)
+    return {metric: average(values) for metric, values in grouped.items()}
+
+
+def format_summary(all_summaries: Dict[str, Dict[str, float]], run_counts: Dict[str, int]) -> str:
+    lines: List[str] = []
+    lines.append("=" * 100)
+    lines.append("LATTIGO CKKS DAG 24/48 BENCHMARK AVERAGES")
+    lines.append("=" * 100)
+    lines.append("")
+
+    for label in all_summaries:
+        summary = all_summaries[label]
+        lines.append(f"{label}  (successful runs: {run_counts[label]})")
+        lines.append("-" * 100)
+        for metric, value in sorted(summary.items(), key=lambda item: metric_sort_key(item[0])):
+            lines.append(f"{metric:.<78} {value:>14.6f} ms")
+        lines.append("")
+
+    lines.append("=" * 100)
+    return "\n".join(lines)
+
+
+def main() -> int:
     args = parse_args()
-    if args.runs < 1:
-        print("Error: --runs must be at least 1", file=sys.stderr)
-        sys.exit(1)
+    if args.runs <= 0 or args.timeout <= 0:
+        print("Error: --runs and --timeout must be > 0.", file=sys.stderr)
+        return 1
 
-    selected = PROGRAMS.items() if args.program == "all" else [(args.program, PROGRAMS[args.program])]
+    selected = [
+        item for item in PROGRAMS if args.only is None or item[0] in set(args.only)
+    ]
+    if not selected:
+        print("Error: no benchmark programs selected.", file=sys.stderr)
+        return 1
 
-    print("\nBenchmark Configuration:")
-    print("  Build mode: go run")
-    print("  Working directory: /home/guoshuai/github/hmbench/lattigo")
-    print(f"  Number of runs per program: {args.runs}")
-    print(f"  Total programs: {len(list(selected))}")
+    output_path = args.output
+    if not output_path.is_absolute():
+        output_path = REPO_ROOT / output_path
 
-    collector = BenchmarkCollector()
+    all_summaries: Dict[str, Dict[str, float]] = {}
+    run_counts: Dict[str, int] = {}
+    for label, package in selected:
+        runs = run_program(label, args.go, package, args.runs, args.timeout)
+        if not runs:
+            print(f"  No successful runs for {label}; skipping summary")
+            continue
+        all_summaries[label] = summarize_runs(runs)
+        run_counts[label] = len(runs)
 
-    for _, program_path in selected:
-        program_name, results = run_benchmark(program_path, args.runs)
-        for timing_data in results:
-            collector.add_run(program_name, timing_data)
+    if not all_summaries:
+        print("Error: no successful benchmark data collected.", file=sys.stderr)
+        return 1
 
-    print_results(collector)
-    print(f"\n{'=' * 70}\n")
+    summary_text = format_summary(all_summaries, run_counts)
+    print("\n" + summary_text)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(summary_text + "\n", encoding="utf-8")
+    print(f"\nSummary written to: {output_path.resolve()}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,0 +1,7 @@
+
+==========================================================================================
+Running 24_ops_single_thread: go run ./cmd/ckks_dag_single_thread_24_parallel (10 successful runs requested)
+==========================================================================================
+  Run 1/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 29036.291 ms)
+  Run 2/10 ... OK (single-thread 24-branch CKKS DAG evaluation: 26090.113 ms)
+  Run 3/10 ... 
